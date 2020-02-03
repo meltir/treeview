@@ -1,7 +1,7 @@
 <?php
 
-error_reporting(E_ALL);
-ini_set("DISPLAY_ERRORS",1);
+error_reporting(0);
+ini_set("DISPLAY_ERRORS",0);
 require ("vendor/autoload.php");
 
 use JsonStreamingParser\Parser;
@@ -24,10 +24,29 @@ class DirTreeListener implements ListenerInterface {
 
     private $count = 0;
 
-    public function __construct($db_file)
+    private $create_table = "CREATE TABLE IF NOT EXISTS \"listing\" (
+	\"id\"	INTEGER PRIMARY KEY AUTOINCREMENT,
+	\"type\"	TEXT,
+	\"name\"	TEXT,
+	\"mode\"	TEXT,
+	\"time\"	TEXT,
+	\"size\"	INTEGER,
+	\"parent\"	INTEGER
+);";
+
+    public function __construct($json_file)
     {
+        $path = pathinfo($json_file);
+        $db_file = $path['filename'].'.db';
+        if (file_exists($db_file))
+        {
+            echo "DB file already exists ($db_file) !\n";
+            exit(1);
+        }
+
         $this->db = new PDO('sqlite:'.$db_file, null, null);
         $this->db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+        $this->db->query($this->create_table);
         $prepared_sql = "UPDATE listing SET 'parent'=?, 'name'=?, 'type'=?, 'mode'=?, 'size'=?, 'time'=? WHERE id=?";
         $this->updatePreparedStatement = $this->db->prepare($prepared_sql);
 
@@ -55,13 +74,6 @@ class DirTreeListener implements ListenerInterface {
     {
         if ($id == 0) return;
         $t = $this->temp_object;
-//        $stm->bindParam(':Tparent',$t['parent']);
-//        $stm->bindParam(':Tname',$t['name']);
-//        $stm->bindParam(':Ttype',$t['type']);
-//        $stm->bindParam(':Tmode',$t['mode']);
-//        $stm->bindParam(':Tsize',$t['size']);
-//        $stm->bindParam(':Ttime',$t['time']);
-//        $stm->bindParam(':Tid',$id);
 
         $this->updatePreparedStatement->execute([
             @$t['parent'],
@@ -72,8 +84,6 @@ class DirTreeListener implements ListenerInterface {
             @$t['time'],
             $id
         ]);
-//        $sql = "UPDATE listing SET 'parent'='".@$t['parent']."', 'name'='".@$t['name']."', 'type'='".@$t['type']."', 'mode'='".@$t['mode']."', 'size'='".@$t['size']."', 'time'='".@$t['time']."' WHERE id=$id";
-//        $this->db->query($sql);
     }
 
     public function startDocument(): void
@@ -137,8 +147,23 @@ class DirTreeListener implements ListenerInterface {
 
 }
 
-$stream = fopen('./8tb-wdelements.121219.json', 'r');
-$listener = new DirTreeListener('/mnt/d/Work/treeview/small_tree.db');
+$file = @$argv[1];
+
+if (!$file)
+{
+    echo "No file to import !\n";
+    echo "Generate a folder listing using 'tree -JspaguD <folder to index> -o <filename>.json'\n";
+    exit(1);
+}
+
+$stream = fopen($file, 'r');
+if (!$stream)
+{
+    echo "File '$file' not found !\n";
+    exit(1);
+}
+
+$listener = new DirTreeListener($file);
 try {
     $parser = new Parser($stream, $listener);
     $parser->parse();
