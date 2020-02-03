@@ -25,7 +25,7 @@ composer install
 php import.php <dir-index>.json
 ```
 
-This will generate a sqlite database in the same directory as the script, named <dir-index>.db
+This will generate a sqlite database in the same directory as the script, named \<dir-index\>.db
 
 This is a side project and not supported in any way. Use at your own risk.
 
